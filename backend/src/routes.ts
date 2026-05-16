@@ -208,7 +208,7 @@ router.get(
   "/notes/:id",
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
-    const noteId = req.params.id;
+    const noteId = req.params.id as string;
     const userId = req.user!.id;
 
     const note = await prisma.note.findFirst({
@@ -252,7 +252,7 @@ router.put(
   async (req: AuthRequest, res: Response) => {
     try {
       const { title, content } = noteSchema.parse(req.body);
-      const noteId = req.params.id;
+      const noteId = req.params.id as string;
       const userId = req.user!.id;
 
       const count = await prisma.note.count({
@@ -278,7 +278,7 @@ router.delete(
   "/notes/:id",
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
-    const noteId = req.params.id;
+    const noteId = req.params.id as string;
     const userId = req.user!.id;
 
     const count = await prisma.note.count({
@@ -308,7 +308,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { share_with_email } = shareSchema.parse(req.body);
-      const noteId = req.params.id;
+      const noteId = req.params.id as string;
       const userId = req.user!.id;
 
       const count = await prisma.note.count({
@@ -383,7 +383,7 @@ router.post(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const noteId = req.params.id;
+      const noteId = req.params.id as string;
       const { labelId } = req.body;
 
       const count = await prisma.note.count({
@@ -414,7 +414,8 @@ router.delete(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { id: noteId, labelId } = req.params;
+      const noteId = req.params.id as string;
+      const labelId = req.params.labelId as string;
 
       const count = await prisma.note.count({
         where: { id: noteId, owner_id: req.user!.id },
