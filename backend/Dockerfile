@@ -9,10 +9,10 @@ RUN npm install
 # Copy Prisma schema and everything else
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Generate Prisma Client and Build typescript code
+RUN npx prisma generate && npm run build
 
 EXPOSE 3001
 
-# The start command (you might want to compile TS to JS in production, but tsx works for now)
+# Start the compiled production code
 CMD ["npm", "run", "start"]
