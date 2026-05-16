@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  password      String
+  created_at    DateTime     @default(now())
+  
+  notes         Note[]       @relation("OwnedNotes")
+  shared_notes  SharedNote[]
+  labels        Label[]      @relation("OwnedLabels")
+}
+
+model Label {
+  id          String   @id @default(uuid())
+  name        String
+  user_id     String
+  user        User     @relation("OwnedLabels", fields: [user_id], references: [id])
+  notes       Note[]   @relation("NoteLabels")
+  @@unique([name, user_id])
+}
+
+model Note {
+  id          String       @id @default(uuid())
+  title       String
+  content     String
+  is_trashed  Boolean      @default(false)
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  
+  owner_id    String
+  owner       User         @relation("OwnedNotes", fields: [owner_id], references: [id])
+  
+  shared_with SharedNote[]
+  labels      Label[]      @relation("NoteLabels")
+}
+
+model SharedNote {
+  id        String   @id @default(uuid())
+  note_id   String
+  user_id   String
+  shared_at DateTime @default(now())
+
+  note      Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([note_id, user_id])
+}
