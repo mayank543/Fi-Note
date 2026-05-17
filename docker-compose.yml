@@ -26,9 +26,9 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=npg_EKtqDPNcI89a
-      - POSTGRES_DB=fi_notes
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-fi_notes}
     ports:
       - "5432:5432"
     volumes:
