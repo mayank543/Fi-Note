@@ -17,3 +17,25 @@ body {
   margin: 0;
   padding: 0;
 }
+
+@keyframes editorExpand {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(18px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes editorBackdropFade {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
