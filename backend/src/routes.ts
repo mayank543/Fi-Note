@@ -38,8 +38,13 @@ const authenticateToken = (
 
 // Schemas
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().trim().toLowerCase().email("Invalid email format").max(255, "Email too long"),
+  password: z.string().min(8, "Password must be at least 8 characters long").regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
 });
 
 const noteSchema = z.object({
@@ -53,6 +58,16 @@ const shareSchema = z.object({
 
 // Routes
 router.post("/register", async (req, res) => {
+  const contentType = req.headers["content-type"] || "";
+  if (!contentType.includes("application/json")) {
+    res.status(415).json({ message: "Unsupported Media Type" });
+    return;
+  }
+  if (!req.body || Object.keys(req.body).length === 0) {
+    res.status(400).json({ message: "Bad Request: Empty body" });
+    return;
+  }
+
   try {
     const { email, password } = registerSchema.parse(req.body);
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -70,8 +85,18 @@ router.post("/register", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
+  const contentType = req.headers["content-type"] || "";
+  if (!contentType.includes("application/json")) {
+    res.status(415).json({ message: "Unsupported Media Type" });
+    return;
+  }
+  if (!req.body || Object.keys(req.body).length === 0) {
+    res.status(400).json({ message: "Bad Request: Empty body" });
+    return;
+  }
+
   try {
-    const { email, password } = registerSchema.parse(req.body);
+    const { email, password } = loginSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       res.status(401).json({ message: "Invalid email or password" });
