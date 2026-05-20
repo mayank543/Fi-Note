@@ -58,6 +58,7 @@ const loginSchema = z.object({
 const noteSchema = z.object({
   title: z.string().min(1),
   content: z.string(),
+  color: z.string().nullish(),
 });
 
 const shareSchema = z.object({
@@ -267,14 +268,15 @@ router.post(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { title, content } = noteSchema.parse(req.body);
+      const { title, content, color } = noteSchema.parse(req.body);
       const userId = req.user!.id;
       const note = await prisma.note.create({
-        data: { title, content, owner_id: userId },
+        data: { title, content, color, owner_id: userId },
       });
       res.status(201).json(note);
     } catch (error) {
-      res.status(400).json({ message: "Validation error" });
+      console.error("API Error:", error);
+      res.status(400).json({ message: "Validation error", error });
     }
   },
 );
@@ -284,7 +286,7 @@ router.put(
   authenticateToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { title, content } = noteSchema.parse(req.body);
+      const { title, content, color } = noteSchema.parse(req.body);
       const noteId = req.params.id as string;
       const userId = req.user!.id;
 
@@ -298,11 +300,12 @@ router.put(
 
       const updated = await prisma.note.update({
         where: { id: noteId },
-        data: { title, content },
+        data: { title, content, color },
       });
       res.json(updated);
     } catch (error) {
-      res.status(400).json({ message: "Validation error" });
+      console.error("API Error:", error);
+      res.status(400).json({ message: "Validation error", error });
     }
   },
 );
@@ -368,7 +371,8 @@ router.post(
 
       res.json({ message: "Note shared successfully" });
     } catch (error) {
-      res.status(400).json({ message: "Validation error" });
+      console.error("API Error:", error);
+      res.status(400).json({ message: "Validation error", error });
     }
   },
 );

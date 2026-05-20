@@ -25,6 +25,7 @@ interface Note {
   id: string;
   title: string;
   content: string;
+  color?: string;
   created_at: string;
   updated_at: string;
   owner_id: string;
@@ -39,6 +40,21 @@ interface EditorSourceRect {
 }
 
 const EDITOR_EXPAND_MS = 520;
+
+const NOTE_COLORS = [
+  { name: "White", value: "#ffffff" },
+  { name: "Red", value: "#f28b82" },
+  { name: "Orange", value: "#fbbc04" },
+  { name: "Yellow", value: "#fff475" },
+  { name: "Green", value: "#ccff90" },
+  { name: "Teal", value: "#a7ffeb" },
+  { name: "Blue", value: "#cbf0f8" },
+  { name: "Dark Blue", value: "#aecbfa" },
+  { name: "Purple", value: "#d7aefb" },
+  { name: "Pink", value: "#fdcfe8" },
+  { name: "Brown", value: "#e6c9a8" },
+  { name: "Gray", value: "#e8eaed" },
+];
 
 export default function Dashboard() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -70,6 +86,7 @@ export default function Dashboard() {
   const [currentNote, setCurrentNote] = useState<Partial<Note>>({
     title: "",
     content: "",
+    color: "#ffffff",
     labels: [],
   });
   const [shareEmail, setShareEmail] = useState("");
@@ -145,16 +162,15 @@ export default function Dashboard() {
     if (!currentNote.title || !currentNote.content) return;
 
     try {
+      const payload = {
+        title: currentNote.title,
+        content: currentNote.content,
+        color: currentNote.color,
+      };
       if (currentNote.id) {
-        await api.put(`/notes/${currentNote.id}`, {
-          title: currentNote.title,
-          content: currentNote.content,
-        });
+        await api.put(`/notes/${currentNote.id}`, payload);
       } else {
-        await api.post("/notes", {
-          title: currentNote.title,
-          content: currentNote.content,
-        });
+        await api.post("/notes", payload);
       }
       closeEditor();
       fetchNotes();
@@ -270,7 +286,11 @@ export default function Dashboard() {
         : null,
     );
     setHiddenSourceNoteId(note?.id ?? null);
-    setCurrentNote(note ? { ...note } : { title: "", content: "", labels: [] });
+    setCurrentNote(
+      note
+        ? { ...note }
+        : { title: "", content: "", color: "#ffffff", labels: [] },
+    );
     setIsEditorOpen(true);
   };
 
@@ -297,7 +317,7 @@ export default function Dashboard() {
         {note.labels?.map((label) => (
           <span
             key={label.id}
-            className="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full flex items-center"
+            className="bg-black/5 text-slate-600 text-xs px-2 py-0.5 rounded-full flex items-center border border-black/5"
           >
             <Tag className="w-3 h-3 mr-1" /> {label.name}
           </span>
@@ -430,7 +450,8 @@ export default function Dashboard() {
               }}
               tabIndex={activeFilter.type !== "trash" ? 0 : -1}
               role={activeFilter.type !== "trash" ? "button" : undefined}
-              className={`bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col h-56 group relative ${
+              style={{ backgroundColor: note.color || "#ffffff" }}
+              className={`border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col h-56 group relative ${
                 activeFilter.type !== "trash"
                   ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-200 focus:ring-offset-2"
                   : ""
@@ -525,10 +546,11 @@ export default function Dashboard() {
                 ? "translate3d(0, 0, 0) scale(1)"
                 : editorTransform,
               opacity: isEditorAnimatingIn ? 1 : 0.92,
+              backgroundColor: currentNote.color || "#ffffff",
               transition:
-                `transform ${EDITOR_EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease-out`,
+                `transform ${EDITOR_EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease-out, background-color 200ms ease`,
             }}
-            className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] will-change-transform relative"
+            className="rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] will-change-transform relative"
           >
             <div
               style={{
@@ -538,7 +560,7 @@ export default function Dashboard() {
               }}
               className="flex flex-col max-h-[90vh] min-h-0"
             >
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <div className="p-4 border-b border-black/5 bg-black/5 flex justify-between items-center">
                 <input
                   type="text"
                   placeholder="Note Title"
@@ -551,8 +573,8 @@ export default function Dashboard() {
               </div>
 
               {currentNote.id && (
-                <div className="px-4 py-2 border-b border-slate-100 bg-white flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-semibold text-slate-400 uppercase mr-2">
+                <div className="px-4 py-2 border-b border-black/5 bg-transparent flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-semibold text-slate-500/70 uppercase mr-2">
                     Tags:
                   </span>
                   {labels.map((lbl) => {
@@ -563,7 +585,7 @@ export default function Dashboard() {
                       <button
                         key={lbl.id}
                         onClick={() => toggleLabel(lbl.id, !!hasLabel)}
-                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center ${hasLabel ? "bg-blue-100 border-blue-200 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center ${hasLabel ? "bg-black/10 border-black/10 text-slate-800" : "bg-transparent border-black/10 text-slate-500 hover:bg-black/5"}`}
                       >
                         <Tag className="w-3 h-3 mr-1" /> {lbl.name}
                       </button>
@@ -578,16 +600,24 @@ export default function Dashboard() {
                 onChange={(e) =>
                   setCurrentNote({ ...currentNote, content: e.target.value })
                 }
-                className="p-6 w-full flex-grow resize-none outline-none text-slate-600 h-[300px]"
+                className="p-6 w-full flex-grow resize-none outline-none text-slate-700 bg-transparent h-[300px]"
               />
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
-                <span className="text-xs text-slate-400">
-                  {!currentNote.id ? "Save once to attach labels" : ""}
-                </span>
-                <div className="space-x-3">
+              <div className="p-4 border-t border-black/5 bg-black/5 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {NOTE_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      onClick={() => setCurrentNote({ ...currentNote, color: c.value })}
+                      title={c.name}
+                      className={`w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110 ${currentNote.color === c.value ? "ring-2 ring-slate-800 ring-offset-1" : ""}`}
+                      style={{ backgroundColor: c.value }}
+                    />
+                  ))}
+                </div>
+                <div className="space-x-3 flex shrink-0">
                   <button
                     onClick={closeEditor}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors font-medium"
+                    className="px-4 py-2 text-slate-600 hover:bg-black/5 rounded-lg transition-colors font-medium"
                   >
                     Cancel
                   </button>

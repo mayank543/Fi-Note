@@ -44,3 +44,4 @@ pg-data/
 *.njsproj
 *.sln
 *.sw?
+/practical learning/
