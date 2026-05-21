@@ -415,6 +415,39 @@ router.post(
   },
 );
 
+router.put(
+  "/labels/:id",
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { name } = req.body;
+      const id = req.params.id as string;
+
+      if (!name) {
+        res.status(400).json({ message: "Name is required" });
+        return;
+      }
+
+      const count = await prisma.label.count({
+        where: { id, user_id: req.user!.id },
+      });
+
+      if (count === 0) {
+        res.status(404).json({ message: "Label not found or forbidden" });
+        return;
+      }
+
+      const updated = await prisma.label.update({
+        where: { id },
+        data: { name },
+      });
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ message: "Update failed" });
+    }
+  },
+);
+
 router.post(
   "/notes/:id/labels",
   authenticateToken,

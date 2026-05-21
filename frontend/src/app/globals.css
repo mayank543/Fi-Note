@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -8,6 +10,13 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+  --card-bg: #ffffff;
+}
+
+.dark {
+  --background: #202124;
+  --foreground: #e8eaed;
+  --card-bg: #2d2e31;
 }
 
 body {
@@ -16,6 +25,7 @@ body {
   font-family: inherit;
   margin: 0;
   padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 @keyframes editorExpand {
