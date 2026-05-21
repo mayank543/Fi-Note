@@ -3,9 +3,11 @@ import { prisma } from "./db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { Resend } from "resend";
 
 export const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "secret";
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Types
 interface AuthRequest extends Request {
@@ -153,7 +155,16 @@ router.get(
           skip,
           take: limit,
           orderBy: { created_at: "asc" },
-          include: { labels: true },
+          include: { 
+            labels: true,
+            shared_with: {
+              include: {
+                user: {
+                  select: { email: true }
+                }
+              }
+            }
+          },
         }),
         prisma.note.count({ where: whereClause }),
       ]);
@@ -218,7 +229,16 @@ router.get(
           skip,
           take: limit,
           orderBy: { created_at: "asc" },
-          include: { labels: true },
+          include: { 
+            labels: true,
+            shared_with: {
+              include: {
+                user: {
+                  select: { email: true }
+                }
+              }
+            }
+          },
         }),
         prisma.note.count({ where: whereClause }),
       ]);
@@ -346,11 +366,12 @@ router.post(
       const { share_with_email } = shareSchema.parse(req.body);
       const noteId = req.params.id as string;
       const userId = req.user!.id;
+      const userEmail = req.user!.email;
 
-      const count = await prisma.note.count({
+      const note = await prisma.note.findUnique({
         where: { id: noteId, owner_id: userId },
       });
-      if (count === 0) {
+      if (!note) {
         res.status(403).json({ message: "Forbidden or note not found" });
         return;
       }
@@ -369,7 +390,50 @@ router.post(
         create: { note_id: noteId, user_id: targetUser.id },
       });
 
-      res.json({ message: "Note shared successfully" });
+      // Send Invitation Email via Resend
+      if (process.env.RESEND_API_KEY) {
+        try {
+          await resend.emails.send({
+            from: "Vault Edition <onboarding@resend.dev>",
+            to: share_with_email,
+            subject: `[AUTHORIZED ACCESS] Shared Record: ${note.title}`,
+            html: `
+              <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #09090b; padding: 40px; border-radius: 24px; max-width: 600px; margin: 20px auto; border: 1px solid #27272a;">
+                <div style="text-align: center; margin-bottom: 32px;">
+                  <div style="background-color: #ffffff; width: 48px; height: 48px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <span style="font-size: 24px;">🛡️</span>
+                  </div>
+                  <h1 style="color: #ffffff; font-size: 22px; font-weight: 900; margin: 0; letter-spacing: -0.02em;">VAULT ACCESS GRANTED</h1>
+                </div>
+
+                <div style="background-color: #18181b; padding: 32px; border-radius: 16px; border: 1px solid #27272a;">
+                  <p style="color: #a1a1aa; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; margin-bottom: 24px;">Security Protocol Notification</p>
+                  <p style="color: #e4e4e7; line-height: 1.6; font-size: 16px;">User <code style="background: #27272a; padding: 2px 6px; border-radius: 4px; color: #ffffff;">${userEmail}</code> has shared a secure node with you.</p>
+                  
+                  <div style="margin: 32px 0; padding: 24px; background-color: #09090b; border-left: 4px solid #ffffff; border-radius: 8px;">
+                    <h2 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: 800;">${note.title}</h2>
+                    <p style="margin: 8px 0 0; color: #71717a; font-size: 14px;">Reference ID: ${note.id.substring(0, 8).toUpperCase()}</p>
+                  </div>
+
+                  <div style="text-align: center; margin: 40px 0 24px;">
+                    <a href="https://fi-note.vercel.app/" style="background-color: #ffffff; color: #000000; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Initialize Sync</a>
+                  </div>
+
+                  <p style="font-size: 13px; color: #52525b; text-align: center;">Authorized personnel only. Access strictly logged.</p>
+                </div>
+                
+                <div style="margin-top: 32px; text-align: center;">
+                  <p style="font-size: 11px; color: #3f3f46; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;">Fi-Money Protocol | Vault Edition v1.0</p>
+                </div>
+              </div>
+            `,
+          });
+        } catch (emailErr) {
+          console.error("Resend Error:", emailErr);
+        }
+      }
+
+      res.json({ message: "Note shared successfully and invitation sent" });
     } catch (error) {
       console.error("API Error:", error);
       res.status(400).json({ message: "Validation error", error });

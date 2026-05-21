@@ -18,11 +18,18 @@ import {
   ShieldCheck,
   Menu,
   X,
+  Users,
 } from "lucide-react";
 
 interface Label {
   id: string;
   name: string;
+}
+
+interface Collaborator {
+  user: {
+    email: string;
+  };
 }
 
 interface Note {
@@ -34,6 +41,7 @@ interface Note {
   updated_at: string;
   owner_id: string;
   labels: Label[];
+  shared_with: Collaborator[];
 }
 
 interface EditorSourceRect {
@@ -201,7 +209,8 @@ export default function Dashboard() {
       await api.post(`/notes/${activeNoteId}/share`, { share_with_email: shareEmail });
       setIsShareOpen(false);
       setShareEmail("");
-      alert("Shared!");
+      alert("Shared invitation sent!");
+      fetchNotes(); // Refresh to show new collaborator
     } catch (err) { alert("Share failed."); }
   };
 
@@ -275,10 +284,29 @@ export default function Dashboard() {
         <div className="text-[9px] text-slate-400 dark:text-zinc-500 font-black uppercase shrink-0">{new Date(note.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
       </div>
       <p className="text-slate-600 dark:text-zinc-300 text-xs leading-relaxed line-clamp-3 flex-grow mb-3 font-medium relative z-10">{note.content}</p>
-      <div className="flex flex-wrap gap-1 mt-auto relative z-10">
-        {note.labels?.slice(0, 2).map((label) => (
-          <span key={label.id} className="bg-black/5 dark:bg-white/10 text-slate-800 dark:text-zinc-200 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-black/5 dark:border-white/5">{label.name}</span>
-        ))}
+      
+      <div className="flex flex-col gap-2 mt-auto relative z-10">
+        {/* Collaborators UI */}
+        {note.shared_with && note.shared_with.length > 0 && (
+          <div className="flex items-center -space-x-2 overflow-hidden mb-1">
+            <div className="bg-slate-200 dark:bg-zinc-800 p-1 rounded-full z-10 border border-white dark:border-zinc-900" title={`${note.shared_with.length} Collaborator(s)`}>
+              <Users className="w-2.5 h-2.5 text-slate-500 dark:text-zinc-400" />
+            </div>
+            {note.shared_with.slice(0, 3).map((collab, idx) => (
+              <div key={idx} className="h-4.5 w-4.5 rounded-full bg-slate-900 dark:bg-zinc-100 flex items-center justify-center text-[7px] font-black text-white dark:text-zinc-950 border border-white dark:border-zinc-900 uppercase" title={collab.user.email}>
+                {collab.user.email[0]}
+              </div>
+            ))}
+            {note.shared_with.length > 3 && (
+              <div className="text-[7px] font-bold text-slate-400 ml-3">+{note.shared_with.length - 3}</div>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1">
+          {note.labels?.slice(0, 2).map((label) => (
+            <span key={label.id} className="bg-black/5 dark:bg-white/10 text-slate-800 dark:text-zinc-200 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-black/5 dark:border-white/5">{label.name}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -288,20 +316,20 @@ export default function Dashboard() {
 
   const activeNoteColor = resolveHex(currentNote.color, isDarkMode);
 
-  const Sidebar = () => (
+  const SidebarContent = () => (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-[#202124]">
-      <div className="p-6">
+      <div className="p-6 text-slate-900 dark:text-white">
         <div className="flex items-center justify-between lg:justify-start lg:space-x-3 cursor-default">
           <div className="flex items-center space-x-3">
             <div className="h-8 w-8 bg-slate-900 dark:bg-zinc-50 rounded-lg flex items-center justify-center shadow-lg">
               <ShieldCheck className="h-5 w-5 text-white dark:text-zinc-950" />
             </div>
-            <div className="flex flex-col text-slate-900 dark:text-white">
+            <div className="flex flex-col">
               <span className="text-lg font-black tracking-tight leading-none">Fi-Money</span>
               <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 mt-0.5">Vault Edition</span>
             </div>
           </div>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white">
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-slate-900 dark:hover:text-zinc-100">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -334,16 +362,16 @@ export default function Dashboard() {
             </button>
           </div>
         ))}
-        <button onClick={() => { setLabelInput(""); setLabelMgrState({ isOpen: true, mode: "create" }); }} className="w-full text-left px-3 py-1.5 rounded-lg text-[10px] text-slate-400 dark:text-zinc-600 hover:text-slate-900 dark:hover:text-zinc-200 flex items-center mt-2 group">
+        <button onClick={() => { setLabelInput(""); setLabelMgrState({ isOpen: true, mode: "create" }); }} className="w-full text-left px-3 py-1.5 rounded-lg text-[10px] text-slate-400 dark:text-zinc-600 hover:text-slate-900 dark:hover:text-zinc-200 flex items-center mt-2 group text-slate-900 dark:text-white">
           <Plus className="h-3 w-3 mr-3" />
-          <span className="font-bold uppercase text-slate-900 dark:text-white">New Category</span>
+          <span className="font-bold uppercase">New Category</span>
         </button>
       </nav>
 
       <div className="p-4 mt-auto border-t border-slate-200 dark:border-zinc-800 space-y-1">
-        <button onClick={toggleTheme} className="w-full text-left px-3 py-2 rounded-xl flex items-center text-slate-600 dark:text-zinc-400 hover:bg-slate-200/50 dark:hover:bg-zinc-900/50 transition-all">
+        <button onClick={toggleTheme} className="w-full text-left px-3 py-2 rounded-xl flex items-center text-slate-600 dark:text-zinc-400 hover:bg-slate-200/50 dark:hover:bg-zinc-900/50 transition-all text-slate-900 dark:text-white">
           {isDarkMode ? <Sun className="h-4 w-4 mr-3" /> : <Moon className="h-4 w-4 mr-3" />}
-          <span className="text-xs font-bold text-slate-900 dark:text-white">{isDarkMode ? "Light Mode" : "Dark Mode"}</span>
+          <span className="text-xs font-bold">{isDarkMode ? "Light Mode" : "Dark Mode"}</span>
         </button>
         <button onClick={() => { setActiveFilter({ type: "trash" }); setIsMobileMenuOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl flex items-center transition-all ${activeFilter.type === "trash" ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 font-bold" : "text-slate-500 dark:text-zinc-400"}`}>
           <Trash2 className="h-4 w-4 mr-3" />
@@ -363,7 +391,7 @@ export default function Dashboard() {
         
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex w-64 border-r border-slate-200 dark:border-zinc-800 flex-col bg-slate-50 dark:bg-[#202124] shrink-0">
-          <Sidebar />
+          <SidebarContent />
         </aside>
 
         {/* Mobile Sidebar Overlay */}
@@ -371,7 +399,7 @@ export default function Dashboard() {
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
             <aside className="fixed left-0 top-0 bottom-0 w-72 bg-slate-50 dark:bg-[#202124] shadow-2xl flex flex-col animate-[editorExpand_0.2s_ease-out]">
-              <Sidebar />
+              <SidebarContent />
             </aside>
           </div>
         )}
@@ -436,9 +464,9 @@ export default function Dashboard() {
             
             {totalPages > 1 && (
               <div className="flex justify-center items-center mt-10 mb-8 space-x-2 bg-white dark:bg-zinc-900 p-2 rounded-xl shadow-sm border border-slate-200 dark:border-zinc-800 max-w-fit mx-auto">
-                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-20 text-slate-600 dark:text-zinc-400"><ChevronLeft className="h-4 w-4" /></button>
+                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-20 text-slate-600 dark:text-zinc-400 transition-all"><ChevronLeft className="h-4 w-4" /></button>
                 <div className="px-3 font-black text-[10px] text-slate-900 dark:text-zinc-100">{currentPage} / {totalPages}</div>
-                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-20 text-slate-600 dark:text-zinc-400"><ChevronRight className="h-4 w-4" /></button>
+                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-20 text-slate-600 dark:text-zinc-400 transition-all"><ChevronRight className="h-4 w-4" /></button>
               </div>
             )}
           </div>
@@ -464,7 +492,7 @@ export default function Dashboard() {
           >
             <div className="flex flex-col h-full min-h-0 text-slate-900 dark:text-zinc-50">
               <div className="p-4 md:p-6 border-b border-black/5 dark:border-white/5 flex items-center">
-                <button onClick={closeEditor} className="md:hidden mr-3 p-1 text-slate-400"><X className="h-5 w-5" /></button>
+                <button onClick={closeEditor} className="md:hidden mr-3 p-1 text-slate-400 hover:text-slate-900 dark:hover:text-zinc-100"><X className="h-5 w-5" /></button>
                 <input
                   type="text" placeholder="Subject..." value={currentNote.title}
                   onChange={(e) => setCurrentNote({ ...currentNote, title: e.target.value })}
@@ -473,7 +501,7 @@ export default function Dashboard() {
               </div>
               {currentNote.id && (
                 <div className="px-4 md:px-6 py-2 border-b border-black/5 dark:border-white/5 bg-transparent flex flex-wrap gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none">
-                  <span className="text-[9px] font-black opacity-50 uppercase tracking-widest mr-2">Indexing:</span>
+                  <span className="text-[9px] font-black opacity-50 uppercase tracking-widest mr-2 text-slate-500 dark:text-zinc-400">Indexing:</span>
                   {labels.map((lbl) => {
                     const hasLabel = currentNote.labels?.some((l) => l.id === lbl.id);
                     return (
@@ -503,40 +531,39 @@ export default function Dashboard() {
         </div>
       )}
 
-      {(labelMgrState.isOpen || isShareOpen) && (
+      {labelMgrState.isOpen && (
         <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-[#2d2e31] rounded-3xl shadow-xl w-full max-w-sm p-6 border border-slate-200 dark:border-zinc-800 animate-[editorExpand_0.2s_ease-out]">
-            {labelMgrState.isOpen && (
-              <>
-                <h3 className="text-lg font-black tracking-tight mb-1 text-slate-900 dark:text-zinc-50">{labelMgrState.mode === "create" ? "New Category" : "Edit Category"}</h3>
-                <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-50 uppercase tracking-widest mb-4">Define System Parameter</p>
-                <input
-                  autoFocus type="text" value={labelInput}
-                  onChange={(e) => setLabelInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLabelAction()}
-                  className="w-full p-3.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-slate-50 dark:bg-zinc-950 text-xs font-medium mb-4 text-slate-900 dark:text-zinc-100"
-                />
-                <div className="flex justify-end space-x-3">
-                  <button onClick={() => setLabelMgrState({ isOpen: false, mode: "create" })} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
-                  <button onClick={handleLabelAction} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Confirm</button>
-                </div>
-              </>
-            )}
-            {isShareOpen && (
-              <>
-                <h3 className="text-lg font-black tracking-tight mb-1 text-slate-900 dark:text-zinc-50">Distribute</h3>
-                <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-50 uppercase tracking-widest mb-4">Authorize Shared Access</p>
-                <input
-                  type="email" placeholder="recipient@vault.net" value={shareEmail}
-                  onChange={(e) => setShareEmail(e.target.value)}
-                  className="w-full p-3.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-slate-50 dark:bg-zinc-950 text-xs font-medium mb-4 text-slate-900 dark:text-zinc-100"
-                />
-                <div className="flex justify-end space-x-3">
-                  <button onClick={() => setIsShareOpen(false)} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
-                  <button onClick={handleShare} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Transfer</button>
-                </div>
-              </>
-            )}
+            <h3 className="text-lg font-black tracking-tight mb-1 text-slate-900 dark:text-zinc-50">{labelMgrState.mode === "create" ? "New Category" : "Edit Category"}</h3>
+            <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-50 uppercase tracking-widest mb-4">Define System Parameter</p>
+            <input
+              autoFocus type="text" value={labelInput}
+              onChange={(e) => setLabelInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLabelAction()}
+              className="w-full p-3.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-slate-50 dark:bg-zinc-950 text-xs font-medium mb-4 text-slate-900 dark:text-zinc-100"
+            />
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setLabelMgrState({ isOpen: false, mode: "create" })} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
+              <button onClick={handleLabelAction} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isShareOpen && (
+        <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-[#2d2e31] rounded-3xl shadow-xl w-full max-w-sm p-6 border border-slate-200 dark:border-zinc-800 animate-[editorExpand_0.2s_ease-out]">
+            <h3 className="text-lg font-black tracking-tight mb-1 text-slate-900 dark:text-zinc-50">Distribute</h3>
+            <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-50 uppercase tracking-widest mb-4">Authorize Shared Access</p>
+            <input
+              type="email" placeholder="recipient@vault.net" value={shareEmail}
+              onChange={(e) => setShareEmail(e.target.value)}
+              className="w-full p-3.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-slate-50 dark:bg-zinc-950 text-xs font-medium mb-4 text-slate-900 dark:text-zinc-100"
+            />
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setIsShareOpen(false)} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
+              <button onClick={handleShare} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Transfer</button>
+            </div>
           </div>
         </div>
       )}
