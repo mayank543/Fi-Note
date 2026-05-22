@@ -48,8 +48,7 @@ const registerSchema = z.object({
     .max(255, "Email too long"),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters long")
-    .regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
+    .min(1, "Password is required"),
 });
 
 const loginSchema = z.object({
