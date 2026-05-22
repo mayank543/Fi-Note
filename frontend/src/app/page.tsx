@@ -103,6 +103,12 @@ export default function Dashboard() {
   const [totalPages, setTotalPages] = useState(1);
   const limit = 12;
   const editorCardRef = useRef<HTMLDivElement | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -190,28 +196,25 @@ export default function Dashboard() {
       else await api.post("/notes", payload);
       closeEditor();
       fetchNotes();
-    } catch (err) { alert("Save failed."); }
+      showToast(currentNote.id ? "Record synchronized." : "New record initialized.", "success");
+    } catch (err) { showToast("Protocol failed: Save error.", "error"); }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const isTrash = activeFilter.type === "trash";
-    if (!confirm(isTrash ? "Permanently delete?" : "Archive record?")) return;
     try {
       await api.delete(`/notes/${id}${isTrash ? "?permanent=true" : ""}`);
       fetchNotes();
-    } catch (err) { alert("Delete failed."); }
+      showToast(isTrash ? "Record purged from vault." : "Record archived.", "success");
+    } catch (err) { showToast("Protocol failed: Deletion error.", "error"); }
   };
 
   const handleShare = async () => {
     if (!shareEmail) return;
-    try {
-      await api.post(`/notes/${activeNoteId}/share`, { share_with_email: shareEmail });
-      setIsShareOpen(false);
-      setShareEmail("");
-      alert("Shared invitation sent!");
-      fetchNotes(); // Refresh to show new collaborator
-    } catch (err) { alert("Share failed."); }
+    setIsShareOpen(false);
+    setShareEmail("");
+    showToast("Email Service: Work in Progress 🚧", "info");
   };
 
   const handleLabelAction = async () => {
@@ -222,7 +225,8 @@ export default function Dashboard() {
       setLabelInput("");
       setLabelMgrState({ isOpen: false, mode: "create" });
       fetchLabels();
-    } catch (err) { alert("Operation failed."); }
+      showToast("System parameter updated.", "success");
+    } catch (err) { showToast("Protocol failed: Category error.", "error"); }
   };
 
   const toggleLabel = async (labelId: string, isAttached: boolean) => {
@@ -237,7 +241,7 @@ export default function Dashboard() {
         if (label) setCurrentNote((prev) => ({ ...prev, labels: [...(prev.labels || []), label] }));
       }
       fetchNotes();
-    } catch (err) { alert("Label toggle failed."); }
+    } catch (err) { showToast("Protocol failed: Label toggle.", "error"); }
   };
 
   useLayoutEffect(() => {
@@ -564,6 +568,20 @@ export default function Dashboard() {
               <button onClick={() => setIsShareOpen(false)} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
               <button onClick={handleShare} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Transfer</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className={`px-6 py-3 rounded-2xl shadow-2xl border flex items-center space-x-3 backdrop-blur-md ${
+            toast.type === "error" ? "bg-red-500/90 border-red-400 text-white" : 
+            toast.type === "success" ? "bg-emerald-500/90 border-emerald-400 text-white" : 
+            "bg-slate-900/90 dark:bg-zinc-50/90 border-slate-700 dark:border-zinc-300 text-white dark:text-zinc-950"
+          }`}>
+            <div className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest">{toast.message}</span>
           </div>
         </div>
       )}

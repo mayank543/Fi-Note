@@ -3,12 +3,17 @@ import { prisma } from "./db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { MailerSend, EmailParams, Sender, Recipient } from "mailersend";
+import nodemailer from "nodemailer";
 
 export const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "secret";
-const mailerSend = new MailerSend({
-  apiKey: process.env.MAILERSEND_API_KEY || "",
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
 });
 
 // Types
@@ -389,18 +394,15 @@ router.post(
         });
       }
 
-      // Send Invitation Email via MailerSend
-      if (process.env.MAILERSEND_API_KEY) {
+      // Send Invitation Email via Nodemailer (Gmail)
+      if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+        console.log(`[Email] Initiating send to ${share_with_email} via Gmail...`);
         try {
-          const sentFrom = new Sender("MS_qY2m8A@trial-o7pne78335p49qrj.mlsender.net", "Vault Edition");
-          const recipients = [new Recipient(share_with_email, "User")];
-
-          const emailParams = new EmailParams()
-            .setFrom(sentFrom)
-            .setTo(recipients)
-            .setReplyTo(sentFrom)
-            .setSubject(`[AUTHORIZED ACCESS] ${targetUser ? 'Shared Record' : 'Invitation to Access'}: ${note.title}`)
-            .setHtml(`
+          const mailOptions = {
+            from: `"Vault Edition" <${process.env.GMAIL_USER}>`,
+            to: share_with_email,
+            subject: `[AUTHORIZED ACCESS] ${targetUser ? 'Shared Record' : 'Invitation to Access'}: ${note.title}`,
+            html: `
               <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #09090b; padding: 40px; border-radius: 24px; max-width: 600px; margin: 20px auto; border: 1px solid #27272a;">
                 <div style="text-align: center; margin-bottom: 32px;">
                   <div style="background-color: #ffffff; width: 48px; height: 48px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
@@ -430,12 +432,16 @@ router.post(
                   <p style="font-size: 11px; color: #3f3f46; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;">Fi-Money Protocol | Vault Edition v1.0</p>
                 </div>
               </div>
-            `);
+            `,
+          };
 
-          await mailerSend.email.send(emailParams);
-        } catch (emailErr) {
-          console.error("MailerSend Error:", emailErr);
+          const info = await transporter.sendMail(mailOptions);
+          console.log("[Email] Gmail send success:", info.messageId);
+        } catch (emailErr: any) {
+          console.error("Gmail Error Details:", emailErr);
         }
+      } else {
+        console.warn("[Email] Gmail credentials missing. Skipping email send.");
       }
 
       res.json({ message: targetUser ? "Note shared successfully" : "Invitation email sent to unregistered user" });
