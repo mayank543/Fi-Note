@@ -63,7 +63,7 @@ const noteSchema = z.object({
 });
 
 const shareSchema = z.object({
-  share_with_email: z.string().email(),
+  share_with_email: z.string().trim().toLowerCase().email(),
 });
 
 // Routes
@@ -378,16 +378,14 @@ router.post(
       const targetUser = await prisma.user.findUnique({
         where: { email: share_with_email },
       });
-      if (!targetUser) {
-        res.status(404).json({ message: "User not found" });
-        return;
-      }
 
-      await prisma.sharedNote.upsert({
-        where: { note_id_user_id: { note_id: noteId, user_id: targetUser.id } },
-        update: {},
-        create: { note_id: noteId, user_id: targetUser.id },
-      });
+      if (targetUser) {
+        await prisma.sharedNote.upsert({
+          where: { note_id_user_id: { note_id: noteId, user_id: targetUser.id } },
+          update: {},
+          create: { note_id: noteId, user_id: targetUser.id },
+        });
+      }
 
       // Send Invitation Email via Resend
       if (process.env.RESEND_API_KEY) {
@@ -395,19 +393,19 @@ router.post(
           await resend.emails.send({
             from: "Vault Edition <onboarding@resend.dev>",
             to: share_with_email,
-            subject: `[AUTHORIZED ACCESS] Shared Record: ${note.title}`,
+            subject: `[AUTHORIZED ACCESS] ${targetUser ? 'Shared Record' : 'Invitation to Access'}: ${note.title}`,
             html: `
               <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #09090b; padding: 40px; border-radius: 24px; max-width: 600px; margin: 20px auto; border: 1px solid #27272a;">
                 <div style="text-align: center; margin-bottom: 32px;">
                   <div style="background-color: #ffffff; width: 48px; height: 48px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
                     <span style="font-size: 24px;">🛡️</span>
                   </div>
-                  <h1 style="color: #ffffff; font-size: 22px; font-weight: 900; margin: 0; letter-spacing: -0.02em;">VAULT ACCESS GRANTED</h1>
+                  <h1 style="color: #ffffff; font-size: 22px; font-weight: 900; margin: 0; letter-spacing: -0.02em;">${targetUser ? 'VAULT ACCESS GRANTED' : 'INVITATION TO SECURE VAULT'}</h1>
                 </div>
 
                 <div style="background-color: #18181b; padding: 32px; border-radius: 16px; border: 1px solid #27272a;">
                   <p style="color: #a1a1aa; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; margin-bottom: 24px;">Security Protocol Notification</p>
-                  <p style="color: #e4e4e7; line-height: 1.6; font-size: 16px;">User <code style="background: #27272a; padding: 2px 6px; border-radius: 4px; color: #ffffff;">${userEmail}</code> has shared a secure node with you.</p>
+                  <p style="color: #e4e4e7; line-height: 1.6; font-size: 16px;">User <code style="background: #27272a; padding: 2px 6px; border-radius: 4px; color: #ffffff;">${userEmail}</code> wants to share a secure node with you.</p>
                   
                   <div style="margin: 32px 0; padding: 24px; background-color: #09090b; border-left: 4px solid #ffffff; border-radius: 8px;">
                     <h2 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: 800;">${note.title}</h2>
@@ -415,9 +413,10 @@ router.post(
                   </div>
 
                   <div style="text-align: center; margin: 40px 0 24px;">
-                    <a href="https://fi-note.vercel.app/" style="background-color: #ffffff; color: #000000; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Initialize Sync</a>
+                    <a href="https://fi-note.vercel.app/" style="background-color: #ffffff; color: #000000; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">${targetUser ? 'Initialize Sync' : 'Create Account to Access'}</a>
                   </div>
 
+                  ${!targetUser ? '<p style="font-size: 13px; color: #a1a1aa; text-align: center; margin-bottom: 16px;">Note: You need to register with this email address to see the shared content.</p>' : ''}
                   <p style="font-size: 13px; color: #52525b; text-align: center;">Authorized personnel only. Access strictly logged.</p>
                 </div>
                 
@@ -432,7 +431,7 @@ router.post(
         }
       }
 
-      res.json({ message: "Note shared successfully and invitation sent" });
+      res.json({ message: targetUser ? "Note shared successfully" : "Invitation email sent to unregistered user" });
     } catch (error) {
       console.error("API Error:", error);
       res.status(400).json({ message: "Validation error", error });
