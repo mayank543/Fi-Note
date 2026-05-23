@@ -51,7 +51,7 @@ interface EditorSourceRect {
   left: number;
 }
 
-const EDITOR_EXPAND_MS = 520;
+const EDITOR_EXPAND_MS = 380;
 
 const COLOR_PALETTE = [
   { id: "default", name: "Default", light: "#ffffff", dark: "#202124" },
@@ -114,8 +114,6 @@ export default function Dashboard() {
     const savedTheme = localStorage.getItem("theme");
     const shouldBeDark = savedTheme !== "light";
     setIsDarkMode(shouldBeDark);
-    if (shouldBeDark) document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
   }, []);
 
   const toggleTheme = () => {
@@ -170,9 +168,26 @@ export default function Dashboard() {
     }
   }, [activeFilter, currentPage, searchQuery, router]);
 
-  useEffect(() => { fetchLabels(); }, [fetchLabels]);
-  useEffect(() => { setCurrentPage(1); }, [activeFilter, searchQuery]);
-  useEffect(() => { fetchNotes(); }, [fetchNotes]);
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    fetchLabels();
+  }, [fetchLabels, router]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    setCurrentPage(1);
+  }, [activeFilter, searchQuery]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    fetchNotes();
+  }, [fetchNotes]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,8 +211,8 @@ export default function Dashboard() {
       else await api.post("/notes", payload);
       closeEditor();
       fetchNotes();
-      showToast(currentNote.id ? "Record synchronized." : "New record initialized.", "success");
-    } catch (err) { showToast("Protocol failed: Save error.", "error"); }
+      showToast(currentNote.id ? "Protocol Synchronized: Record Updated" : "Protocol Initialized: New Entry Secured", "success");
+    } catch (err) { showToast("Protocol Failure: Save Error Detected", "error"); }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -206,8 +221,8 @@ export default function Dashboard() {
     try {
       await api.delete(`/notes/${id}${isTrash ? "?permanent=true" : ""}`);
       fetchNotes();
-      showToast(isTrash ? "Record purged from vault." : "Record archived.", "success");
-    } catch (err) { showToast("Protocol failed: Deletion error.", "error"); }
+      showToast(isTrash ? "Vault Cleared: Data Purged" : "Record Archived: Moved to Cold Storage", "success");
+    } catch (err) { showToast("Security Conflict: Deletion Rejected", "error"); }
   };
 
   const handleShare = async () => {
@@ -246,37 +261,68 @@ export default function Dashboard() {
 
   useLayoutEffect(() => {
     if (!isEditorOpen || !editorCardRef.current) return;
+    
     if (!editorSourceRect || window.innerWidth < 768) {
       setEditorTransform("translate3d(0, 0, 0) scale(1)");
-      requestAnimationFrame(() => setIsEditorAnimatingIn(true));
-      return;
+      // For mobile or no source, just fade in
+      const raf = requestAnimationFrame(() => {
+        setIsEditorAnimatingIn(true);
+      });
+      return () => cancelAnimationFrame(raf);
     }
+
+    // FLIP Animation Logic
     const finalRect = editorCardRef.current.getBoundingClientRect();
+    
+    // Invert
     const scaleX = editorSourceRect.width / finalRect.width;
     const scaleY = editorSourceRect.height / finalRect.height;
     const translateX = editorSourceRect.left - finalRect.left;
     const translateY = editorSourceRect.top - finalRect.top;
+    
     setEditorTransform(`translate3d(${translateX}px, ${translateY}px, 0) scale(${scaleX}, ${scaleY})`);
-    requestAnimationFrame(() => setIsEditorAnimatingIn(true));
+    
+    // Play: We need a double RAF to ensure the browser has applied the 'Invert' transform
+    // before we remove it to start the transition.
+    let raf2: number;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        setIsEditorAnimatingIn(true);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
   }, [isEditorOpen, editorSourceRect]);
 
   const openEditor = (note?: Note, sourceEl?: HTMLElement | null) => {
-    const rect = sourceEl?.getBoundingClientRect();
+    // Ensure we reset animation state before opening
     setIsEditorAnimatingIn(false);
+    
+    // Find the actual card element if a sub-element was clicked
+    const cardEl = sourceEl?.closest('[data-note-card="true"]') as HTMLElement || sourceEl;
+    const rect = cardEl?.getBoundingClientRect();
+    
     setEditorSourceRect(rect ? { width: rect.width, height: rect.height, top: rect.top, left: rect.left } : null);
     setHiddenSourceNoteId(note?.id ?? null);
+    
     if (note) {
       const foundColor = COLOR_PALETTE.find(c => c.light === note.color || c.dark === note.color || c.id === note.color);
       setCurrentNote({ ...note, color: foundColor ? foundColor.id : "default" });
     } else {
       setCurrentNote({ title: "", content: "", color: "default", labels: [] });
     }
+    
     setIsEditorOpen(true);
   };
 
   const closeEditor = () => {
-    setIsEditorOpen(false);
     setIsEditorAnimatingIn(false);
+    // Short delay before closing the modal to allow for a close animation if desired, 
+    // but here we'll just close it to be snappy.
+    setIsEditorOpen(false);
     setEditorSourceRect(null);
     setHiddenSourceNoteId(null);
   };
@@ -316,7 +362,23 @@ export default function Dashboard() {
   );
 
   if (loading && notes.length === 0)
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#202124] font-black text-slate-900 dark:text-zinc-50 text-2xl animate-pulse">VAULT_INIT</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#202124]">
+        <div className="relative">
+          <div className="h-16 w-16 bg-slate-900 dark:bg-zinc-50 rounded-2xl flex items-center justify-center shadow-2xl animate-bounce">
+            <ShieldCheck className="h-10 w-10 text-white dark:text-zinc-950" />
+          </div>
+        </div>
+        <div className="mt-8 flex flex-col items-center">
+          <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500 animate-pulse">
+            Initializing Vault
+          </h2>
+          <div className="mt-2 h-1 w-32 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-full bg-slate-900 dark:bg-zinc-50 w-1/2 animate-[loading_1.5s_infinite_ease-in-out]" />
+          </div>
+        </div>
+      </div>
+    );
 
   const activeNoteColor = resolveHex(currentNote.color, isDarkMode);
 
@@ -482,19 +544,23 @@ export default function Dashboard() {
       </div>
 
       {isEditorOpen && (
-        <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-0 md:p-4 z-50 transition-all">
+        <div 
+          className={`fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 transition-all duration-500 ${isEditorAnimatingIn ? "bg-zinc-950/60 backdrop-blur-md" : "bg-zinc-950/0 backdrop-blur-none"}`}
+          onClick={(e) => e.target === e.currentTarget && closeEditor()}
+        >
           <div
             ref={editorCardRef}
             style={{
               transformOrigin: "top left",
               transform: isEditorAnimatingIn ? "translate3d(0, 0, 0) scale(1)" : (window.innerWidth < 768 ? "translate3d(0, 100%, 0)" : editorTransform),
               opacity: isEditorAnimatingIn ? 1 : (window.innerWidth < 768 ? 1 : 0),
+              borderRadius: isEditorAnimatingIn ? (window.innerWidth < 768 ? "0px" : "32px") : "16px",
               backgroundColor: activeNoteColor,
-              transition: `transform ${EDITOR_EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease-out, background-color 200ms ease`,
+              transition: `transform ${EDITOR_EXPAND_MS}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${EDITOR_EXPAND_MS * 0.6}ms ease-out, border-radius ${EDITOR_EXPAND_MS}ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease`,
             }}
-            className="w-full h-full md:h-auto md:max-w-2xl md:rounded-[32px] overflow-hidden flex flex-col max-h-screen md:max-h-[85vh] will-change-transform border-none md:border md:border-white/20 dark:md:border-zinc-800 shadow-2xl"
+            className="w-full h-full md:h-auto md:max-w-2xl overflow-hidden flex flex-col max-h-screen md:max-h-[85vh] will-change-[transform,opacity,border-radius] border-none md:border md:border-white/20 dark:md:border-zinc-800 shadow-2xl"
           >
-            <div className="flex flex-col h-full min-h-0 text-slate-900 dark:text-zinc-50">
+            <div className={`flex flex-col h-full min-h-0 text-slate-900 dark:text-zinc-50 transition-opacity duration-300 ${isEditorAnimatingIn ? "opacity-100" : "opacity-0"}`}>
               <div className="p-4 md:p-6 border-b border-black/5 dark:border-white/5 flex items-center">
                 <button onClick={closeEditor} className="md:hidden mr-3 p-1 text-slate-400 hover:text-slate-900 dark:hover:text-zinc-100"><X className="h-5 w-5" /></button>
                 <input
@@ -526,8 +592,18 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <div className="flex w-full sm:w-auto space-x-3">
-                  <button onClick={closeEditor} className="hidden md:block px-4 py-2 font-bold text-[10px] uppercase text-slate-500 dark:text-zinc-400">Discard</button>
-                  <button onClick={handleSaveNote} className="flex-1 sm:flex-none px-6 py-4 md:py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-2xl md:rounded-xl font-black text-xs md:text-[10px] uppercase shadow-md transition-all active:scale-95">Commit Changes</button>
+                  <button 
+                    onClick={closeEditor} 
+                    className="hidden md:block px-6 py-2.5 font-black text-[10px] uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors"
+                  >
+                    Discard
+                  </button>
+                  <button 
+                    onClick={handleSaveNote} 
+                    className="flex-1 sm:flex-none px-8 py-4 md:py-2.5 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-2xl md:rounded-xl font-black text-xs md:text-[10px] uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+                  >
+                    Commit Changes
+                  </button>
                 </div>
               </div>
             </div>
@@ -537,18 +613,42 @@ export default function Dashboard() {
 
       {labelMgrState.isOpen && (
         <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-[#2d2e31] rounded-3xl shadow-xl w-full max-w-sm p-6 border border-slate-200 dark:border-zinc-800 animate-[editorExpand_0.2s_ease-out]">
-            <h3 className="text-lg font-black tracking-tight mb-1 text-slate-900 dark:text-zinc-50">{labelMgrState.mode === "create" ? "New Category" : "Edit Category"}</h3>
-            <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-50 uppercase tracking-widest mb-4">Define System Parameter</p>
-            <input
-              autoFocus type="text" value={labelInput}
-              onChange={(e) => setLabelInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLabelAction()}
-              className="w-full p-3.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-slate-50 dark:bg-zinc-950 text-xs font-medium mb-4 text-slate-900 dark:text-zinc-100"
-            />
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setLabelMgrState({ isOpen: false, mode: "create" })} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
-              <button onClick={handleLabelAction} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Confirm</button>
+          <div className="bg-white dark:bg-[#2d2e31] rounded-[32px] shadow-2xl w-full max-w-sm p-8 border border-slate-200 dark:border-zinc-800 animate-[editorExpand_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="h-12 w-12 bg-slate-900 dark:bg-zinc-50 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                <FolderOpen className="h-6 w-6 text-white dark:text-zinc-950" />
+              </div>
+              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-zinc-50">
+                {labelMgrState.mode === "create" ? "New Category" : "Refine Category"}
+              </h3>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-[0.2em] mt-1">
+                Updating Vault Parameters
+              </p>
+            </div>
+            
+            <div className="relative group mb-6">
+              <input
+                autoFocus type="text" value={labelInput}
+                placeholder="Category name..."
+                onChange={(e) => setLabelInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLabelAction()}
+                className="w-full p-4 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-2xl outline-none text-sm font-bold text-slate-900 dark:text-zinc-100 focus:border-slate-900 dark:focus:border-zinc-400 transition-all placeholder:text-slate-300 dark:placeholder:text-zinc-700"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setLabelMgrState({ isOpen: false, mode: "create" })} 
+                className="flex-1 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleLabelAction} 
+                className="flex-1 px-4 py-3 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+              >
+                {labelMgrState.mode === "create" ? "Initialize" : "Update"}
+              </button>
             </div>
           </div>
         </div>
@@ -556,17 +656,41 @@ export default function Dashboard() {
 
       {isShareOpen && (
         <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-[#2d2e31] rounded-3xl shadow-xl w-full max-w-sm p-6 border border-slate-200 dark:border-zinc-800 animate-[editorExpand_0.2s_ease-out]">
-            <h3 className="text-lg font-black tracking-tight mb-1 text-slate-900 dark:text-zinc-50">Distribute</h3>
-            <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-50 uppercase tracking-widest mb-4">Authorize Shared Access</p>
-            <input
-              type="email" placeholder="recipient@vault.net" value={shareEmail}
-              onChange={(e) => setShareEmail(e.target.value)}
-              className="w-full p-3.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-slate-50 dark:bg-zinc-950 text-xs font-medium mb-4 text-slate-900 dark:text-zinc-100"
-            />
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setIsShareOpen(false)} className="px-4 py-2 text-[10px] font-bold uppercase text-slate-400">Cancel</button>
-              <button onClick={handleShare} className="px-5 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-lg font-black text-[10px] uppercase shadow-md">Transfer</button>
+          <div className="bg-white dark:bg-[#2d2e31] rounded-[32px] shadow-2xl w-full max-w-sm p-8 border border-slate-200 dark:border-zinc-800 animate-[editorExpand_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="h-12 w-12 bg-slate-900 dark:bg-zinc-50 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                <Share2 className="h-6 w-6 text-white dark:text-zinc-950" />
+              </div>
+              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-zinc-50">
+                Authorize Access
+              </h3>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-[0.2em] mt-1">
+                Peer-to-Peer Distribution
+              </p>
+            </div>
+            
+            <div className="relative group mb-6">
+              <input
+                type="email" placeholder="recipient@vault.net" value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleShare()}
+                className="w-full p-4 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-2xl outline-none text-sm font-bold text-slate-900 dark:text-zinc-100 focus:border-slate-900 dark:focus:border-zinc-400 transition-all placeholder:text-slate-300 dark:placeholder:text-zinc-700"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsShareOpen(false)} 
+                className="flex-1 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleShare} 
+                className="flex-1 px-4 py-3 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+              >
+                Transfer
+              </button>
             </div>
           </div>
         </div>
@@ -574,14 +698,26 @@ export default function Dashboard() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className={`px-6 py-3 rounded-2xl shadow-2xl border flex items-center space-x-3 backdrop-blur-md ${
-            toast.type === "error" ? "bg-red-500/90 border-red-400 text-white" : 
-            toast.type === "success" ? "bg-emerald-500/90 border-emerald-400 text-white" : 
-            "bg-slate-900/90 dark:bg-zinc-50/90 border-slate-700 dark:border-zinc-300 text-white dark:text-zinc-950"
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+          <div className={`px-4 py-2.5 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.2)] border flex items-center gap-3 backdrop-blur-xl animate-[editorExpand_0.4s_cubic-bezier(0.16,1,0.3,1)] pointer-events-auto ${
+            toast.type === "error" ? "bg-red-500/90 border-red-400/50 text-white" : 
+            toast.type === "success" ? "bg-slate-900/95 dark:bg-zinc-50/95 border-slate-700/50 dark:border-zinc-200/50 text-white dark:text-zinc-950" : 
+            "bg-blue-600/90 border-blue-400/50 text-white"
           }`}>
-            <div className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest">{toast.message}</span>
+            <div className={`h-7 w-7 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${
+              toast.type === "error" ? "bg-red-400/30" : 
+              toast.type === "success" ? "bg-white/10 dark:bg-black/10" : 
+              "bg-blue-400/30"
+            }`}>
+              {toast.type === "error" ? <X className="h-3.5 w-3.5" /> : 
+               toast.type === "success" ? <ShieldCheck className="h-3.5 w-3.5" /> : 
+               <FolderOpen className="h-3.5 w-3.5" />}
+            </div>
+            <div className="flex flex-col pr-1">
+              <span className="text-[11px] font-black tracking-tight leading-tight">
+                {toast.message}
+              </span>
+            </div>
           </div>
         </div>
       )}
