@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { enableGuest } from "@/lib/guest";
 import Link from "next/link";
-import { Lock, Mail, Eye, EyeOff, UserPlus } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, UserPlus, Sun, Moon } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -14,6 +14,24 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !document.documentElement.classList.contains("dark");
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+    setIsDark(next);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,8 +50,15 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#202124] transition-colors duration-300">
-      <div className="max-w-md w-full bg-white dark:bg-[#2d2e31] rounded-2xl shadow-xl border border-slate-100 dark:border-zinc-800 p-8">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#202124] relative">
+      <div className="max-w-md w-full bg-white dark:bg-[#2d2e31] rounded-2xl shadow-xl border border-slate-100 dark:border-zinc-800 p-8 relative">
+        <button
+          onClick={toggleTheme}
+          className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          aria-label="Toggle theme"
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-800 dark:text-zinc-100">Welcome Back</h1>
           <p className="text-slate-500 dark:text-zinc-400 mt-2">Sign in to access your notes</p>

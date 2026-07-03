@@ -127,9 +127,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    const shouldBeDark = savedTheme !== "light";
-    setIsDarkMode(shouldBeDark);
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
   }, []);
 
   const toggleTheme = () => {
@@ -499,7 +497,7 @@ export default function Dashboard() {
 
   if (authMode === "none")
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#202124] transition-colors duration-300 font-sans">
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#202124] font-sans">
         {/* Nav */}
         <nav className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center space-x-3">
@@ -643,8 +641,8 @@ export default function Dashboard() {
   );
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? "dark" : ""} flex font-sans selection:bg-slate-900 selection:text-white dark:selection:bg-white dark:selection:text-slate-900 transition-colors duration-300`}>
-      <div className="flex w-full bg-slate-50 dark:bg-[#202124] transition-colors duration-300">
+    <div className={`min-h-screen ${isDarkMode ? "dark" : ""} flex font-sans selection:bg-slate-900 selection:text-white dark:selection:bg-white dark:selection:text-slate-900`}>
+      <div className="flex w-full bg-slate-50 dark:bg-[#202124]">
         
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex w-64 border-r border-slate-200 dark:border-zinc-800 flex-col bg-slate-50 dark:bg-[#202124] shrink-0">
@@ -677,11 +675,11 @@ export default function Dashboard() {
             </div>
             
             <form onSubmit={handleSearchSubmit} className="w-full md:max-w-xs relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-slate-900 dark:group-focus-within:text-zinc-100 transition-colors" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-slate-900 dark:group-focus-within:text-zinc-100" />
               <input
                 type="text" placeholder="Query Database..." value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value) { setCurrentPage(1); fetchNotes(""); } }}
-                className="w-full pl-9 pr-3 py-2.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 text-xs font-medium focus:border-slate-900 dark:focus:border-zinc-600 transition-all shadow-sm"
+                className="w-full pl-9 pr-3 py-2.5 border border-slate-200 dark:border-zinc-800 rounded-xl outline-none bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 text-xs font-medium focus:border-slate-900 dark:focus:border-zinc-600 shadow-sm"
               />
             </form>
           </header>
