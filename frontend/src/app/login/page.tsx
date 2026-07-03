@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { enableGuest } from "@/lib/guest";
 import Link from "next/link";
-import { Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, UserPlus } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -110,7 +111,26 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-slate-500 dark:text-zinc-500 font-medium">
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200 dark:border-zinc-800" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-white dark:bg-[#2d2e31] px-3 text-slate-400 dark:text-zinc-600 font-bold uppercase tracking-wider">
+              Or
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => { enableGuest(); router.push("/"); }}
+          className="w-full bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 rounded-lg py-3 font-bold border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800 focus:ring-4 focus:ring-slate-200 dark:focus:ring-zinc-800 transition-all flex items-center justify-center gap-2 shadow-sm"
+        >
+          <UserPlus className="h-4 w-4" />
+          Continue as Guest
+        </button>
+
+        <p className="mt-6 text-center text-sm text-slate-500 dark:text-zinc-500 font-medium">
           Don't have an account?{" "}
           <Link
             href="/register"

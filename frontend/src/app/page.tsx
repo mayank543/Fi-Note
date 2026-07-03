@@ -4,6 +4,19 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import {
+  isGuest,
+  enableGuest,
+  disableGuest,
+  getGuestNotes,
+  getGuestLabels,
+  createGuestNote,
+  updateGuestNote,
+  deleteGuestNote,
+  createGuestLabel,
+  updateGuestLabel,
+  deleteGuestLabel,
+} from "@/lib/guest";
+import {
   Plus,
   LogOut,
   Edit2,
@@ -19,6 +32,8 @@ import {
   Menu,
   X,
   Users,
+  UserPlus,
+  LogIn,
 } from "lucide-react";
 
 interface Label {
@@ -69,6 +84,7 @@ export default function Dashboard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"loading" | "authenticated" | "guest" | "none">("loading");
   const router = useRouter();
   
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -137,15 +153,60 @@ export default function Dashboard() {
   }, []);
 
   const fetchLabels = useCallback(async () => {
+    const mode = authMode === "loading"
+      ? (localStorage.getItem("access_token") ? "authenticated" : isGuest() ? "guest" : "none")
+      : authMode;
+
+    if (mode === "guest") {
+      setLabels(getGuestLabels());
+      return;
+    }
+
     try {
       const res = await api.get("/labels");
       setLabels(res.data || []);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [authMode]);
 
   const fetchNotes = useCallback(async (overrideQuery?: string) => {
+    const mode = authMode === "loading"
+      ? (localStorage.getItem("access_token") ? "authenticated" : isGuest() ? "guest" : "none")
+      : authMode;
+
+    if (mode === "guest") {
+      let filtered = getGuestNotes();
+      const query = overrideQuery !== undefined ? overrideQuery : searchQuery;
+      if (query.trim()) {
+        const q = query.trim().toLowerCase();
+        filtered = filtered.filter(
+          (n) =>
+            n.title.toLowerCase().includes(q) ||
+            n.content.toLowerCase().includes(q),
+        );
+      }
+      if (activeFilter.type === "trash") {
+        filtered = filtered.filter((n) => n.is_trashed);
+      } else {
+        filtered = filtered.filter((n) => !n.is_trashed);
+      }
+      if (activeFilter.type === "label" && activeFilter.id) {
+        filtered = filtered.filter((n) =>
+          n.labels.some((l) => l.id === activeFilter.id),
+        );
+      }
+      const total = filtered.length;
+      const paged = filtered.slice(
+        (currentPage - 1) * limit,
+        currentPage * limit,
+      );
+      setNotes(paged as unknown as Note[]);
+      setTotalPages(Math.ceil(total / limit) || 1);
+      setLoading(false);
+      return;
+    }
+
     const query = overrideQuery !== undefined ? overrideQuery : searchQuery;
     try {
       const endpoint = query.trim() ? "/search" : "/notes";
@@ -166,28 +227,33 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, currentPage, searchQuery, router]);
+  }, [activeFilter, currentPage, searchQuery, router, authMode]);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    if (!token) {
-      router.push("/login");
-      return;
+    if (token) {
+      setAuthMode("authenticated");
+      fetchLabels();
+    } else if (isGuest()) {
+      setAuthMode("guest");
+      setNotes(getGuestNotes() as unknown as Note[]);
+      setLabels(getGuestLabels());
+      setLoading(false);
+    } else {
+      setAuthMode("none");
+      setLoading(false);
     }
-    fetchLabels();
-  }, [fetchLabels, router]);
+  }, [fetchLabels]);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (authMode === "none") return;
     setCurrentPage(1);
-  }, [activeFilter, searchQuery]);
+  }, [activeFilter, searchQuery, authMode]);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (authMode === "none" || authMode === "loading") return;
     fetchNotes();
-  }, [fetchNotes]);
+  }, [fetchNotes, authMode]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,12 +261,37 @@ export default function Dashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    router.push("/login");
+    if (authMode === "guest") {
+      disableGuest();
+      setAuthMode("none");
+      setNotes([]);
+      setLabels([]);
+    } else {
+      localStorage.removeItem("access_token");
+      router.push("/login");
+    }
   };
 
   const handleSaveNote = async () => {
     if (!currentNote.title || !currentNote.content) return;
+    if (authMode === "guest") {
+      const payload = {
+        title: currentNote.title,
+        content: currentNote.content,
+        color: currentNote.color || "default",
+      };
+      if (currentNote.id) {
+        updateGuestNote(currentNote.id, payload);
+      } else {
+        const created = createGuestNote(payload);
+        setCurrentNote((prev) => ({ ...prev, id: created.id }));
+      }
+      closeEditor();
+      fetchNotes();
+      showToast(currentNote.id ? "Protocol Synchronized: Record Updated" : "Protocol Initialized: New Entry Secured", "success");
+      return;
+    }
+
     try {
       const payload = {
         title: currentNote.title,
@@ -218,6 +309,12 @@ export default function Dashboard() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const isTrash = activeFilter.type === "trash";
+    if (authMode === "guest") {
+      deleteGuestNote(id, isTrash);
+      fetchNotes();
+      showToast(isTrash ? "Vault Cleared: Data Purged" : "Record Archived: Moved to Cold Storage", "success");
+      return;
+    }
     try {
       await api.delete(`/notes/${id}${isTrash ? "?permanent=true" : ""}`);
       fetchNotes();
@@ -234,6 +331,15 @@ export default function Dashboard() {
 
   const handleLabelAction = async () => {
     if (!labelInput.trim()) return;
+    if (authMode === "guest") {
+      if (labelMgrState.mode === "create") createGuestLabel(labelInput);
+      else if (labelMgrState.editingId) updateGuestLabel(labelMgrState.editingId, labelInput);
+      setLabelInput("");
+      setLabelMgrState({ isOpen: false, mode: "create" });
+      fetchLabels();
+      showToast("System parameter updated.", "success");
+      return;
+    }
     try {
       if (labelMgrState.mode === "create") await api.post("/labels", { name: labelInput });
       else if (labelMgrState.editingId) await api.put(`/labels/${labelMgrState.editingId}`, { name: labelInput });
@@ -246,6 +352,17 @@ export default function Dashboard() {
 
   const toggleLabel = async (labelId: string, isAttached: boolean) => {
     if (!currentNote.id) return;
+    if (authMode === "guest") {
+      const note = getGuestNotes().find((n) => n.id === currentNote.id);
+      if (!note) return;
+      const updatedLabels = isAttached
+        ? note.labels.filter((l) => l.id !== labelId)
+        : [...note.labels, labels.find((l) => l.id === labelId)!].filter(Boolean);
+      updateGuestNote(currentNote.id, { labels: updatedLabels });
+      setCurrentNote((prev) => ({ ...prev, labels: updatedLabels }));
+      fetchNotes();
+      return;
+    }
     try {
       if (isAttached) {
         await api.delete(`/notes/${currentNote.id}/labels/${labelId}`);
@@ -361,7 +478,7 @@ export default function Dashboard() {
     </div>
   );
 
-  if (loading && notes.length === 0)
+  if (loading && notes.length === 0 && authMode !== "none")
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#202124]">
         <div className="relative">
@@ -376,6 +493,80 @@ export default function Dashboard() {
           <div className="mt-2 h-1 w-32 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
             <div className="h-full bg-slate-900 dark:bg-zinc-50 w-1/2 animate-[loading_1.5s_infinite_ease-in-out]" />
           </div>
+        </div>
+      </div>
+    );
+
+  if (authMode === "none")
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#202124] transition-colors duration-300 font-sans">
+        {/* Nav */}
+        <nav className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800">
+          <div className="flex items-center space-x-3">
+            <div className="h-8 w-8 bg-slate-900 dark:bg-zinc-50 rounded-lg flex items-center justify-center shadow-lg">
+              <ShieldCheck className="h-5 w-5 text-white dark:text-zinc-950" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-black tracking-tight leading-none text-slate-900 dark:text-white">Fi-Money</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500">Vault Edition</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/login")}
+              className="hidden sm:inline-flex px-4 py-2 text-xs font-bold text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => router.push("/register")}
+              className="px-4 py-2 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-xl text-xs font-bold shadow-lg hover:bg-slate-800 dark:hover:bg-white transition-all"
+            >
+              Create Account
+            </button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
+          <div className="h-20 w-20 bg-slate-900 dark:bg-zinc-50 rounded-3xl flex items-center justify-center shadow-2xl mb-8">
+            <ShieldCheck className="h-12 w-12 text-white dark:text-zinc-950" />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white mb-4">
+            Secure Note Vault
+          </h1>
+          <p className="text-slate-500 dark:text-zinc-400 max-w-md text-base leading-relaxed mb-10">
+            Your encrypted command center for notes, data, and intelligence. Start recording your mission-critical information.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
+            <button
+              onClick={() => router.push("/register")}
+              className="flex-1 px-6 py-3.5 bg-slate-900 dark:bg-zinc-50 text-white dark:text-zinc-950 rounded-2xl font-black text-sm shadow-lg hover:bg-slate-800 dark:hover:bg-white transition-all flex items-center justify-center gap-2"
+            >
+              <LogIn className="h-4 w-4" />
+              Get Started
+            </button>
+            <button
+              onClick={() => { enableGuest(); setAuthMode("guest"); }}
+              className="flex-1 px-6 py-3.5 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 rounded-2xl font-black text-sm border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 shadow-sm"
+            >
+              <UserPlus className="h-4 w-4" />
+              Guest Access
+            </button>
+          </div>
+          <p className="mt-6 text-xs text-slate-400 dark:text-zinc-600">
+            Already have an account?{" "}
+            <button onClick={() => router.push("/login")} className="text-slate-900 dark:text-zinc-200 font-bold hover:underline">
+              Sign in
+            </button>
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="py-4 text-center">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-300 dark:text-zinc-700">
+            Fi-Money Protocol | Vault Edition v1.0
+          </p>
         </div>
       </div>
     );
