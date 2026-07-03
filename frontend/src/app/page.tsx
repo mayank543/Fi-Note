@@ -699,7 +699,7 @@ export default function Dashboard() {
                     key={note.id} data-note-card="true"
                     onClick={(e) => activeFilter.type !== "trash" && openEditor(note, e.currentTarget)}
                     style={{ backgroundColor: hex }}
-                    className={`group border border-slate-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col h-40 relative overflow-hidden ${activeFilter.type !== "trash" ? "cursor-pointer active:scale-95 md:hover:-translate-y-0.5" : ""} ${hiddenSourceNoteId === note.id ? "opacity-0" : ""}`}
+                    className={`group border border-slate-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-[box-shadow,transform] flex flex-col h-40 relative overflow-hidden ${activeFilter.type !== "trash" ? "cursor-pointer active:scale-95 md:hover:-translate-y-0.5" : ""} ${hiddenSourceNoteId === note.id ? "opacity-0" : ""}`}
                   >
                     <div className="absolute top-0 right-0 w-12 h-12 bg-black/[0.03] dark:bg-white/[0.03] rounded-full -mr-6 -mt-6" />
                     {renderNoteCardContent(note)}
