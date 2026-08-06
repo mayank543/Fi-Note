@@ -137,6 +137,9 @@ export default function Dashboard() {
     showToast("Email Service: Work in Progress 🚧", "info");
   };
 
+  if (authMode === "loading")
+    return <LoadingScreen />;
+
   if (isLoading && notes.length === 0 && authMode !== "none")
     return <LoadingScreen />;
 
